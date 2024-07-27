@@ -1,0 +1,24 @@
+package templates
+
+import (
+	"fmt"
+	"github.com/jrammler/wheelhouse/internal/storage"
+)
+
+templ Commands(commands []storage.Command) {
+	<!DOCTYPE html />
+	<html lang="de">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Wheelhouse</title>
+		</head>
+		<body>
+			<ul>
+				for i, command := range commands {
+					<li><form action={ templ.URL(fmt.Sprintf("/run_command/%d", i)) } method="post"><button>{ command.Name }</button></form></li>
+				}
+			</ul>
+		</body>
+	</html>
+}

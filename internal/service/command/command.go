@@ -65,6 +65,7 @@ func (s *CommandService) RunCommand(ctx context.Context, id int) error {
 		if err != nil {
 			slog.ErrorContext(ctx, "Command returned error", "run_id", runId, "error", err.Error())
 		}
+		slog.InfoContext(ctx, "Running command completed", "run_id", runId)
 		s.WaitGroup.Done()
 	}()
 	return nil
