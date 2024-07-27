@@ -1,20 +1,8 @@
 {
     "commands": [
-        {
-            "name": "echo 1",
-            "command": "echo \"Hello World\""
-        },
-        {
-            "name": "sleep",
-            "command": "sleep 2"
-        },
-        {
-            "name": "echo 2",
-            "command": "echo \"Hello World\" 1>&2 && false"
-        },
-        {
-            "name": "false",
-            "command": "false"
-        }
+        { "name": "echo 1", "command": "echo \"Hello World\"" },
+        { "name": "sleep", "command": "sleep 2" },
+        { "name": "echo 2", "command": "echo \"Hello World\" 1>&2 && false" },
+        { "name": "false", "command": "false" }
     ]
 }
