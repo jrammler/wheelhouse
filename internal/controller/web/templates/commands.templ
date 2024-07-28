@@ -42,9 +42,13 @@ templ ExecutionDetails(execution *command.CommandExecution) {
 			<p>{ fmt.Sprintf("%d", *execution.ExitCode) }</p>
 		}
 		<h1>Output</h1>
-		<ul>
+		<ul style="font-family:monospace">
 			for _, entry := range execution.Log {
-				<li>[{ entry.Stream }] { entry.Data }</li>
+				<li
+					if entry.Stream == "stderr" {
+						style="color:Red"
+					}
+				>[{ entry.Stream }] { entry.Data }</li>
 			}
 		</ul>
 		<h1>Controls</h1>
