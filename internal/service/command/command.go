@@ -14,10 +14,24 @@ import (
 
 var CommandNotFoundError = errors.New("Command with given ID not found")
 
+type LogEntry struct {
+	Stream string
+	Data   string
+}
+
+type CommandExecution struct {
+	ExecId    int
+	CommandId int
+	ExitCode  *int
+	Log       []LogEntry
+	logMutex  sync.Mutex
+}
+
 type CommandService struct {
-	storage   storage.Storage
-	WaitGroup *sync.WaitGroup
-	runCount  atomic.Uint64
+	storage       storage.Storage
+	execCount     atomic.Uint64
+	execWaitGroup *sync.WaitGroup
+	history       sync.Map // map of execId to *CommandExecution
 }
 
 func (s *CommandService) GetCommands(ctx context.Context) ([]storage.Command, error) {
@@ -28,57 +42,79 @@ func (s *CommandService) GetCommands(ctx context.Context) ([]storage.Command, er
 	return config.Commands, nil
 }
 
-func pipeToLog(ctx context.Context, runId uint64, stream string, pipe io.Reader) {
+func (e *CommandExecution) pipeToLog(stream string, pipe io.Reader) {
 	go func() {
 		scanner := bufio.NewScanner(pipe)
 		for scanner.Scan() {
-			slog.InfoContext(ctx, "Command output", "run_id", runId, "stream", stream, "output", scanner.Text())
+			e.logMutex.Lock()
+			e.Log = append(e.Log, LogEntry{
+				Stream: stream,
+				Data:   scanner.Text(),
+			})
+			e.logMutex.Unlock()
 		}
 	}()
 }
 
-func (s *CommandService) RunCommand(ctx context.Context, id int) error {
+func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error) {
 	config, err := s.storage.GetConfig(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if id < 0 || id >= len(config.Commands) {
-		return CommandNotFoundError
+		return 0, CommandNotFoundError
 	}
-	runId := s.runCount.Add(1)
-	s.WaitGroup.Add(1)
+	execId := int(s.execCount.Add(1))
+	s.execWaitGroup.Add(1)
+	execution := CommandExecution{
+		ExecId:    execId,
+		CommandId: id,
+	}
+	s.history.Store(execId, &execution)
 	command := config.Commands[id]
-	slog.InfoContext(ctx, "Running command", "run_id", runId, "command_id", id, "command_name", command.Name, "command", command.Command)
+	slog.InfoContext(ctx, "Executing command", "execId", execId, "command_id", id, "command_name", command.Name, "command", command.Command)
 	cmd := exec.Command("bash", "-c", command.Command)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		s.execWaitGroup.Done()
+		return 0, err
 	}
-	pipeToLog(ctx, runId, "stdout", stdout)
+	execution.pipeToLog("stdout", stdout)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return err
+		s.execWaitGroup.Done()
+		return 0, err
 	}
-	pipeToLog(ctx, runId, "stderr", stderr)
+	execution.pipeToLog("stderr", stderr)
 	go func() {
 		err = cmd.Run()
 		if err != nil {
-			slog.ErrorContext(ctx, "Command returned error", "run_id", runId, "error", err.Error())
+			slog.ErrorContext(ctx, "Command returned error", "execId", execId, "error", err.Error())
 		}
-		slog.InfoContext(ctx, "Running command completed", "run_id", runId)
-		s.WaitGroup.Done()
+		exitCode := cmd.ProcessState.ExitCode()
+		execution.ExitCode = &exitCode
+		slog.InfoContext(ctx, "Executing command completed", "execId", execId)
+		s.execWaitGroup.Done()
 	}()
-	return nil
+	return execId, nil
+}
+
+func (s *CommandService) GetExecution(ctx context.Context, execId int) *CommandExecution {
+	e, ok := s.history.Load(execId)
+	if !ok {
+		return nil
+	}
+	return e.(*CommandExecution)
+}
+
+func (s *CommandService) WaitExecutions(ctx context.Context) {
+	s.execWaitGroup.Wait()
 }
 
 func NewCommandService(storage storage.Storage) *CommandService {
 	s := CommandService{
-		storage:   storage,
-		WaitGroup: &sync.WaitGroup{},
+		storage:       storage,
+		execWaitGroup: &sync.WaitGroup{},
 	}
-	// ctx := context.Background()
-	// s.AddCommand(ctx, "echo \"Hello, World!\"")
-	// s.AddCommand(ctx, "echo \"Hello, World!\" 1>&2")
-	// s.AddCommand(ctx, "false")
 	return &s
 }

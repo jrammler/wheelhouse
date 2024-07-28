@@ -8,7 +8,9 @@ import (
 
 type CommandService interface {
 	GetCommands(ctx context.Context) ([]storage.Command, error)
-	RunCommand(ctx context.Context, id int) error
+	ExecuteCommand(ctx context.Context, id int) (int, error)
+	GetExecution(ctx context.Context, execId int) *command.CommandExecution
+	WaitExecutions(ctx context.Context)
 }
 
 type Service struct {

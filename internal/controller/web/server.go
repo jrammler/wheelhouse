@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"github.com/jrammler/wheelhouse/internal/controller/web/templates"
 	"github.com/jrammler/wheelhouse/internal/service"
 	"net/http"
@@ -26,15 +27,33 @@ func (s *Server) Serve() {
 		}
 		templates.Commands(commands).Render(r.Context(), w)
 	})
-	http.HandleFunc("POST /run_command/{id}", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("POST /execute/{id}", func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.PathValue("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		s.service.CommandService.RunCommand(r.Context(), id)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		execId, err := s.service.CommandService.ExecuteCommand(r.Context(), id)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/execution/%d", execId), http.StatusSeeOther)
+	})
+	http.HandleFunc("GET /execution/{id}", func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.PathValue("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		execution := s.service.CommandService.GetExecution(r.Context(), id)
+		if execution == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		templates.ExecutionDetails(execution).Render(r.Context(), w)
 	})
 	http.ListenAndServe(":8080", nil)
 }

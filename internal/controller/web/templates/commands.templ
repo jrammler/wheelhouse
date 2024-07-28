@@ -2,23 +2,53 @@ package templates
 
 import (
 	"fmt"
+	"github.com/jrammler/wheelhouse/internal/service/command"
 	"github.com/jrammler/wheelhouse/internal/storage"
 )
 
-templ Commands(commands []storage.Command) {
+templ page(refresh bool) {
 	<!DOCTYPE html />
 	<html lang="de">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			if refresh {
+				<meta http-equiv="refresh" content="2"/>
+			}
 			<title>Wheelhouse</title>
 		</head>
 		<body>
-			<ul>
-				for i, command := range commands {
-					<li><form action={ templ.URL(fmt.Sprintf("/run_command/%d", i)) } method="post"><button>{ command.Name }</button></form></li>
-				}
-			</ul>
+			{ children... }
 		</body>
 	</html>
+}
+
+templ Commands(commands []storage.Command) {
+	@page(false) {
+		<ul>
+			for i, command := range commands {
+				<li><form action={ templ.URL(fmt.Sprintf("/execute/%d", i)) } method="post"><button>{ command.Name }</button></form></li>
+			}
+		</ul>
+	}
+}
+
+templ ExecutionDetails(execution *command.CommandExecution) {
+	@page(execution.ExitCode == nil) {
+		<h1>ExitCode</h1>
+		if execution.ExitCode == nil {
+			<p>Execution not finished</p>
+		} else {
+			<p>{ fmt.Sprintf("%d", *execution.ExitCode) }</p>
+		}
+		<h1>Output</h1>
+		<ul>
+			for _, entry := range execution.Log {
+				<li>[{ entry.Stream }] { entry.Data }</li>
+			}
+		</ul>
+		<h1>Controls</h1>
+		<p><a href={ templ.URL(fmt.Sprintf("/execution/%d", execution.ExecId)) }>Refresh</a></p>
+		<p><a href="/">Back to main page</a></p>
+	}
 }
