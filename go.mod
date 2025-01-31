@@ -1,5 +1,7 @@
 module github.com/jrammler/wheelhouse
 
-go 1.22.5
+go 1.23
 
-require github.com/a-h/templ v0.2.747
+toolchain go1.23.3
+
+require github.com/a-h/templ v0.3.819

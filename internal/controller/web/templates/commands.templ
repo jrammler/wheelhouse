@@ -6,15 +6,13 @@ import (
 	"github.com/jrammler/wheelhouse/internal/storage"
 )
 
-templ page(refresh bool) {
+templ page() {
 	<!DOCTYPE html />
 	<html lang="de">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			if refresh {
-				<meta http-equiv="refresh" content="2"/>
-			}
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 			<title>Wheelhouse</title>
 		</head>
 		<body>
@@ -24,7 +22,7 @@ templ page(refresh bool) {
 }
 
 templ Commands(commands []storage.Command) {
-	@page(false) {
+	@page() {
 		<ul>
 			for i, command := range commands {
 				<li><form action={ templ.URL(fmt.Sprintf("/execute/%d", i)) } method="post"><button>{ command.Name }</button></form></li>
@@ -33,8 +31,21 @@ templ Commands(commands []storage.Command) {
 	}
 }
 
+templ LogList(execution *command.CommandExecution, start int) {
+	for _, entry := range execution.Log[start:] {
+		<li
+			if entry.Stream == "stderr" {
+				style="color:Red"
+			}
+		>[{ entry.Stream }] { entry.Data }</li>
+	}
+	if (execution.ExitCode == nil) {
+		<li style="color:grey" hx-get={ fmt.Sprintf("/execution/%d/log?start=%d", execution.ExecId, len(execution.Log)) } hx-swap="outerHTML" hx-trigger="load delay:2s">running...</li>
+	}
+}
+
 templ ExecutionDetails(execution *command.CommandExecution) {
-	@page(execution.ExitCode == nil) {
+	@page() {
 		<h1>ExitCode</h1>
 		if execution.ExitCode == nil {
 			<p>Execution not finished</p>
@@ -43,13 +54,7 @@ templ ExecutionDetails(execution *command.CommandExecution) {
 		}
 		<h1>Output</h1>
 		<ul style="font-family:monospace">
-			for _, entry := range execution.Log {
-				<li
-					if entry.Stream == "stderr" {
-						style="color:Red"
-					}
-				>[{ entry.Stream }] { entry.Data }</li>
-			}
+			@LogList(execution, 0)
 		</ul>
 		<h1>Controls</h1>
 		<p><a href={ templ.URL(fmt.Sprintf("/execution/%d", execution.ExecId)) }>Refresh</a></p>

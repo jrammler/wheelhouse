@@ -20,6 +20,10 @@ func NewServer(service *service.Service) *Server {
 
 func (s *Server) Serve() {
 	http.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
 		commands, err := s.service.CommandService.GetCommands(r.Context())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -50,10 +54,28 @@ func (s *Server) Serve() {
 		}
 		execution := s.service.CommandService.GetExecution(r.Context(), id)
 		if execution == nil {
-			w.WriteHeader(http.StatusNotFound)
+			http.NotFound(w, r)
 			return
 		}
 		templates.ExecutionDetails(execution).Render(r.Context(), w)
+	})
+	http.HandleFunc("GET /execution/{id}/log", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		start, err := strconv.Atoi(r.FormValue("start"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		execution := s.service.CommandService.GetExecution(r.Context(), id)
+		if execution == nil {
+			http.NotFound(w, r)
+			return
+		}
+		templates.LogList(execution, start).Render(r.Context(), w)
 	})
 	http.ListenAndServe(":8080", nil)
 }
