@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"github.com/jrammler/wheelhouse/internal/storage"
 	"io"
 	"log/slog"
 	"os/exec"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"github.com/jrammler/wheelhouse/internal/storage"
 )
 
 var CommandNotFoundError = errors.New("Command with given ID not found")
@@ -22,9 +24,16 @@ type LogEntry struct {
 type CommandExecution struct {
 	ExecId    int
 	CommandId int
+	Time      time.Time
 	ExitCode  *int
 	Log       []LogEntry
 	logMutex  sync.Mutex
+}
+
+type ExecutionHistoryEntry struct {
+	ExecId      int
+	Time        time.Time
+	CommandName string
 }
 
 type CommandService struct {
@@ -64,11 +73,12 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error
 	if id < 0 || id >= len(config.Commands) {
 		return 0, CommandNotFoundError
 	}
-	execId := int(s.execCount.Add(1))
+	execId := int(s.execCount.Add(1)) - 1
 	s.execWaitGroup.Add(1)
 	execution := CommandExecution{
 		ExecId:    execId,
 		CommandId: id,
+		Time:      time.Now(),
 	}
 	s.history.Store(execId, &execution)
 	command := config.Commands[id]
@@ -97,6 +107,25 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error
 		s.execWaitGroup.Done()
 	}()
 	return execId, nil
+}
+
+func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]ExecutionHistoryEntry, error) {
+	config, err := s.storage.GetConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var history []ExecutionHistoryEntry
+	s.history.Range(func(key any, value any) bool {
+		execId := key.(int)
+		execution := value.(*CommandExecution)
+		history = append(history, ExecutionHistoryEntry{
+			ExecId:      execId,
+			Time:        execution.Time,
+			CommandName: config.Commands[execution.CommandId].Name,
+		})
+		return true
+	})
+	return history, nil
 }
 
 func (s *CommandService) GetExecution(ctx context.Context, execId int) *CommandExecution {

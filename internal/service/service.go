@@ -9,6 +9,7 @@ import (
 type CommandService interface {
 	GetCommands(ctx context.Context) ([]storage.Command, error)
 	ExecuteCommand(ctx context.Context, id int) (int, error)
+	GetExecutionHistory(ctx context.Context) ([]command.ExecutionHistoryEntry, error)
 	GetExecution(ctx context.Context, execId int) *command.CommandExecution
 	WaitExecutions(ctx context.Context)
 }

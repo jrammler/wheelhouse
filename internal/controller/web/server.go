@@ -24,6 +24,9 @@ func (s *Server) Serve() {
 			http.NotFound(w, r)
 			return
 		}
+		http.Redirect(w, r, "/commands", http.StatusMovedPermanently)
+	})
+	http.HandleFunc("GET /commands", func(w http.ResponseWriter, r *http.Request) {
 		commands, err := s.service.CommandService.GetCommands(r.Context())
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -43,9 +46,17 @@ func (s *Server) Serve() {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		http.Redirect(w, r, fmt.Sprintf("/execution/%d", execId), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/executions/%d", execId), http.StatusSeeOther)
 	})
-	http.HandleFunc("GET /execution/{id}", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /executions", func(w http.ResponseWriter, r *http.Request) {
+		history, err := s.service.CommandService.GetExecutionHistory(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		templates.ExecutionList(history).Render(r.Context(), w)
+	})
+	http.HandleFunc("GET /executions/{id}", func(w http.ResponseWriter, r *http.Request) {
 		idStr := r.PathValue("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
@@ -59,7 +70,7 @@ func (s *Server) Serve() {
 		}
 		templates.ExecutionDetails(execution).Render(r.Context(), w)
 	})
-	http.HandleFunc("GET /execution/{id}/log", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /executions/{id}/log", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -67,15 +78,14 @@ func (s *Server) Serve() {
 		}
 		start, err := strconv.Atoi(r.FormValue("start"))
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+			start = 0
 		}
 		execution := s.service.CommandService.GetExecution(r.Context(), id)
 		if execution == nil {
 			http.NotFound(w, r)
 			return
 		}
-		templates.LogList(execution, start).Render(r.Context(), w)
+		templates.LogList(execution, &start).Render(r.Context(), w)
 	})
 	http.ListenAndServe(":8080", nil)
 }
