@@ -2,8 +2,7 @@ package templates
 
 import (
 	"fmt"
-	"github.com/jrammler/wheelhouse/internal/service/command"
-	"github.com/jrammler/wheelhouse/internal/storage"
+	"github.com/jrammler/wheelhouse/internal/entity"
 	"slices"
 	"time"
 )
@@ -25,7 +24,7 @@ templ page() {
 	</html>
 }
 
-templ Commands(commands []storage.Command) {
+templ Commands(commands []entity.Command) {
 	@page() {
 		<h1>Commands</h1>
 		<ul>
@@ -36,7 +35,7 @@ templ Commands(commands []storage.Command) {
 	}
 }
 
-templ ExecutionList(history []command.ExecutionHistoryEntry) {
+templ ExecutionList(history []entity.ExecutionHistoryEntry) {
 	@page() {
 		<h1>Execution History</h1>
 		<ul>
@@ -56,7 +55,7 @@ func defaultInt(opt *int) int {
 	return *opt
 }
 
-templ LogList(execution *command.CommandExecution, start *int) {
+templ LogList(execution *entity.CommandExecution, start *int) {
 	for _, entry := range execution.Log[defaultInt(start):] {
 		<li
 			if entry.Stream == "stderr" {
@@ -73,7 +72,7 @@ templ LogList(execution *command.CommandExecution, start *int) {
 	}
 }
 
-templ ExecutionDetails(execution *command.CommandExecution) {
+templ ExecutionDetails(execution *entity.CommandExecution) {
 	@page() {
 		<h1>ExitCode</h1>
 		if execution.ExitCode == nil {

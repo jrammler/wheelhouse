@@ -11,52 +11,38 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jrammler/wheelhouse/internal/entity"
 	"github.com/jrammler/wheelhouse/internal/storage"
 )
 
 var CommandNotFoundError = errors.New("Command with given ID not found")
 
-type LogEntry struct {
-	Stream string
-	Data   string
-}
-
-type CommandExecution struct {
-	ExecId    int
-	CommandId int
-	Time      time.Time
-	ExitCode  *int
-	Log       []LogEntry
-	logMutex  sync.Mutex
-}
-
-type ExecutionHistoryEntry struct {
-	ExecId      int
-	Time        time.Time
-	CommandName string
-}
-
 type CommandService struct {
 	storage       storage.Storage
 	execCount     atomic.Uint64
 	execWaitGroup *sync.WaitGroup
-	history       sync.Map // map of execId to *CommandExecution
+	history       sync.Map // map of execId to *lockedCommandExecution
 }
 
-func (s *CommandService) GetCommands(ctx context.Context) ([]storage.Command, error) {
-	config, err := s.storage.GetConfig(ctx)
+type lockedCommandExecution struct {
+	execution entity.CommandExecution
+	logMutex  sync.Mutex
+}
+
+func (s *CommandService) GetCommands(ctx context.Context) ([]entity.Command, error) {
+	commands, err := s.storage.GetCommands(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return config.Commands, nil
+	return commands, nil
 }
 
-func (e *CommandExecution) pipeToLog(stream string, pipe io.Reader) {
+func pipeStreamToLog(e *lockedCommandExecution, stream string, pipe io.Reader) {
 	go func() {
 		scanner := bufio.NewScanner(pipe)
 		for scanner.Scan() {
 			e.logMutex.Lock()
-			e.Log = append(e.Log, LogEntry{
+			e.execution.Log = append(e.execution.Log, entity.LogEntry{
 				Stream: stream,
 				Data:   scanner.Text(),
 			})
@@ -66,22 +52,24 @@ func (e *CommandExecution) pipeToLog(stream string, pipe io.Reader) {
 }
 
 func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error) {
-	config, err := s.storage.GetConfig(ctx)
+	commands, err := s.storage.GetCommands(ctx)
 	if err != nil {
 		return 0, err
 	}
-	if id < 0 || id >= len(config.Commands) {
+	if id < 0 || id >= len(commands) {
 		return 0, CommandNotFoundError
 	}
 	execId := int(s.execCount.Add(1)) - 1
 	s.execWaitGroup.Add(1)
-	execution := CommandExecution{
-		ExecId:    execId,
-		CommandId: id,
-		Time:      time.Now(),
+	execution := lockedCommandExecution{
+		execution: entity.CommandExecution{
+			ExecId:    execId,
+			CommandId: id,
+			ExecTime:  time.Now(),
+		},
 	}
 	s.history.Store(execId, &execution)
-	command := config.Commands[id]
+	command := commands[id]
 	slog.InfoContext(ctx, "Executing command", "execId", execId, "command_id", id, "command_name", command.Name, "command", command.Command)
 	cmd := exec.Command("bash", "-c", command.Command)
 	stdout, err := cmd.StdoutPipe()
@@ -89,51 +77,51 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error
 		s.execWaitGroup.Done()
 		return 0, err
 	}
-	execution.pipeToLog("stdout", stdout)
+	pipeStreamToLog(&execution, "stdout", stdout)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		s.execWaitGroup.Done()
 		return 0, err
 	}
-	execution.pipeToLog("stderr", stderr)
+	pipeStreamToLog(&execution, "stderr", stderr)
 	go func() {
 		err = cmd.Run()
 		if err != nil {
-			slog.ErrorContext(ctx, "Command returned error", "execId", execId, "error", err.Error())
+			slog.InfoContext(ctx, "Command returned error", "execId", execId, "error", err.Error())
 		}
 		exitCode := cmd.ProcessState.ExitCode()
-		execution.ExitCode = &exitCode
+		execution.execution.ExitCode = &exitCode
 		slog.InfoContext(ctx, "Executing command completed", "execId", execId)
 		s.execWaitGroup.Done()
 	}()
 	return execId, nil
 }
 
-func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]ExecutionHistoryEntry, error) {
-	config, err := s.storage.GetConfig(ctx)
+func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]entity.ExecutionHistoryEntry, error) {
+	commands, err := s.storage.GetCommands(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var history []ExecutionHistoryEntry
+	var history []entity.ExecutionHistoryEntry
 	s.history.Range(func(key any, value any) bool {
 		execId := key.(int)
-		execution := value.(*CommandExecution)
-		history = append(history, ExecutionHistoryEntry{
+		execution := value.(*lockedCommandExecution).execution
+		history = append(history, entity.ExecutionHistoryEntry{
 			ExecId:      execId,
-			Time:        execution.Time,
-			CommandName: config.Commands[execution.CommandId].Name,
+			Time:        execution.ExecTime,
+			CommandName: commands[execution.CommandId].Name,
 		})
 		return true
 	})
 	return history, nil
 }
 
-func (s *CommandService) GetExecution(ctx context.Context, execId int) *CommandExecution {
+func (s *CommandService) GetExecution(ctx context.Context, execId int) *entity.CommandExecution {
 	e, ok := s.history.Load(execId)
 	if !ok {
 		return nil
 	}
-	return e.(*CommandExecution)
+	return &e.(*lockedCommandExecution).execution
 }
 
 func (s *CommandService) WaitExecutions(ctx context.Context) {
