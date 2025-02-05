@@ -12,7 +12,7 @@ func main() {
 	sto := storage.NewJsonStorage("config.json")
 
 	ser := &service.Service{
-		CommandService: command.NewCommandService(sto),
+		CommandService: command.NewCommandService(sto, nil),
 		AuthService:    auth.NewAuthService(sto),
 	}
 

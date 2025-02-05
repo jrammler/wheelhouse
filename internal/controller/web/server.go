@@ -33,13 +33,13 @@ func (s *Server) handleHomeGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLoginGet(w http.ResponseWriter, r *http.Request) {
-    // TODO: implement this by using the AuthService
+	// TODO: implement this by using the AuthService
 }
 
 func (s *Server) handleLoginPost(w http.ResponseWriter, r *http.Request) {
-    // TODO: implement this by using the AuthService
+	// TODO: implement this by using the AuthService
 }
 
 func (s *Server) handleLogoutGet(w http.ResponseWriter, r *http.Request) {
-    // TODO: implement this by using the AuthService
+	// TODO: implement this by using the AuthService
 }

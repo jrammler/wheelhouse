@@ -7,6 +7,16 @@ SOURCES := $(GO_FILES) $(TEMPL_FILES)
 main: $(GO_FILES) $(TEMPL_GO_FILES)
 	go build cmd/wheelhouse/main.go
 
+.PHONY: test
+test:
+	go test ./...
+
+.PHONY: coverag
+coverage:
+	go test ./... -coverprofile=coverage.out
+	go tool cover -html=coverage.out
+	rm coverage.out
+
 .PHONY: run
 run: main
 	./main 8080
@@ -14,7 +24,7 @@ run: main
 .PHONY: format
 format:
 	templ fmt .
-	echo $(GO_FILES) | xargs -n 1 go fmt
+	go fmt ./...
 
 .PHONY: watch
 watch: main
