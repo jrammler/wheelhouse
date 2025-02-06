@@ -174,9 +174,9 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]entity.Exec
 		})
 		return true
 	})
-    slices.SortFunc(history, func(a, b entity.ExecutionHistoryEntry) int {
-        return int(a.Time.Sub(b.Time).Milliseconds())
-    })
+	slices.SortFunc(history, func(a, b entity.ExecutionHistoryEntry) int {
+		return int(a.Time.Sub(b.Time).Milliseconds())
+	})
 	return history, nil
 }
 

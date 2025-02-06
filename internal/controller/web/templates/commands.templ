@@ -7,23 +7,6 @@ import (
 	"time"
 )
 
-templ page() {
-	<!DOCTYPE html />
-	<html lang="de">
-		<head>
-			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-			<title>Wheelhouse</title>
-		</head>
-		<body>
-			<a href="/commands">Commands</a>
-			<a href="/executions">History</a>
-			{ children... }
-		</body>
-	</html>
-}
-
 templ Commands(commands []entity.Command) {
 	@page() {
 		<h1>Commands</h1>
