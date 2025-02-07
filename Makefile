@@ -8,7 +8,7 @@ wheelhouse: $(GO_FILES) $(TEMPL_GO_FILES)
 	go build ./cmd/wheelhouse
 
 .PHONY: test
-test:
+test: $(TEMPL_GO_FILES)
 	go test ./...
 
 .PHONY: coverag
