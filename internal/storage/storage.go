@@ -14,8 +14,8 @@ import (
 var UserNotFoundError = errors.New("User not found")
 
 type config struct {
-	Commands []entity.Command
-	Users    []entity.User
+	Commands []entity.Command `json:"commands"`
+	Users    []entity.User    `json:"users"`
 }
 
 type Storage interface {

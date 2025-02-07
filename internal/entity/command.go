@@ -3,9 +3,9 @@ package entity
 import "time"
 
 type Command struct {
-	Name    string
-	Command string
-	Role    *string
+	Name    string  `json:"name"`
+	Command string  `json:"command"`
+	Role    *string `json:"role,omitempty"`
 }
 
 type LogEntry struct {
