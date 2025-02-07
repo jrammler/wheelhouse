@@ -1,2 +1,4 @@
 *_templ.go
 main
+.aider*
+.env
