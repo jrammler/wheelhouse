@@ -16,14 +16,18 @@ func NewServer(service *service.Service) *Server {
 	}
 }
 
-func (s *Server) Serve() {
-	http.HandleFunc("GET /", s.handleHomeGet)
-	s.AddAuthHandlers()
-	s.AddCommandHandlers()
-	http.ListenAndServe(":8080", nil)
+func (s *Server) Serve() error {
+	mux := http.NewServeMux()
+
+	authenticatedMux := SetupAuthentication(s.service, mux)
+	authenticatedMux.HandleFunc("GET /", s.handleIndexGet)
+
+	SetupCommandMux(s.service, authenticatedMux)
+
+	return http.ListenAndServe(":8080", mux)
 }
 
-func (s *Server) handleHomeGet(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleIndexGet(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return

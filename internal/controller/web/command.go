@@ -6,79 +6,90 @@ import (
 	"strconv"
 
 	"github.com/jrammler/wheelhouse/internal/controller/web/templates"
+	"github.com/jrammler/wheelhouse/internal/service"
 )
 
-func (s *Server) AddCommandHandlers() {
-	http.HandleFunc("GET /commands", s.handleCommandsGet)
-	http.HandleFunc("POST /execute/{id}", s.handleExecutePost)
-	http.HandleFunc("GET /executions", s.handleExecutionsGet)
-	http.HandleFunc("GET /executions/{id}", s.handleExecutionDetailsGet)
-	http.HandleFunc("GET /executions/{id}/log", s.handleExecutionLogGet)
+func SetupCommandMux(service *service.Service, mux *http.ServeMux) {
+	mux.HandleFunc("GET /commands", handleCommandsGet(service))
+	mux.HandleFunc("POST /execute/{id}", handleExecutePost(service))
+	mux.HandleFunc("GET /executions", handleExecutionsGet(service))
+	mux.HandleFunc("GET /executions/{id}", handleExecutionDetailsGet(service))
+	mux.HandleFunc("GET /executions/{id}/log", handleExecutionLogGet(service))
 }
 
-func (s *Server) handleCommandsGet(w http.ResponseWriter, r *http.Request) {
-	commands, err := s.service.CommandService.GetCommands(r.Context())
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+func handleCommandsGet(service *service.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		commands, err := service.CommandService.GetCommands(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		templates.Commands(commands).Render(r.Context(), w)
 	}
-	templates.Commands(commands).Render(r.Context(), w)
 }
 
-func (s *Server) handleExecutePost(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+func handleExecutePost(service *service.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		execId, err := service.CommandService.ExecuteCommand(r.Context(), id)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/executions/%d", execId), http.StatusFound)
 	}
-	execId, err := s.service.CommandService.ExecuteCommand(r.Context(), id)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("/executions/%d", execId), http.StatusSeeOther)
 }
 
-func (s *Server) handleExecutionsGet(w http.ResponseWriter, r *http.Request) {
-	history, err := s.service.CommandService.GetExecutionHistory(r.Context())
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+func handleExecutionsGet(service *service.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		history, err := service.CommandService.GetExecutionHistory(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		templates.ExecutionList(history).Render(r.Context(), w)
 	}
-	templates.ExecutionList(history).Render(r.Context(), w)
 }
 
-func (s *Server) handleExecutionDetailsGet(w http.ResponseWriter, r *http.Request) {
-	idStr := r.PathValue("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+func handleExecutionDetailsGet(service *service.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.PathValue("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		execution := service.CommandService.GetExecution(r.Context(), id)
+		if execution == nil {
+			http.NotFound(w, r)
+			return
+		}
+		templates.ExecutionDetails(execution).Render(r.Context(), w)
 	}
-	execution := s.service.CommandService.GetExecution(r.Context(), id)
-	if execution == nil {
-		http.NotFound(w, r)
-		return
-	}
-	templates.ExecutionDetails(execution).Render(r.Context(), w)
 }
 
-func (s *Server) handleExecutionLogGet(w http.ResponseWriter, r *http.Request) {
-	idStr := r.PathValue("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+func handleExecutionLogGet(service *service.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.PathValue("id")
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		startStr := r.FormValue("start")
+		start, err := strconv.Atoi(startStr)
+		if err != nil {
+			start = 0
+		}
+		execution := service.CommandService.GetExecution(r.Context(), id)
+		if execution == nil {
+			http.NotFound(w, r)
+			return
+		}
+		templates.LogList(execution, &start).Render(r.Context(), w)
 	}
-	startStr := r.FormValue("start")
-	start, err := strconv.Atoi(startStr)
-	if err != nil {
-		start = 0
-	}
-	execution := s.service.CommandService.GetExecution(r.Context(), id)
-	if execution == nil {
-		http.NotFound(w, r)
-		return
-	}
-	templates.LogList(execution, &start).Render(r.Context(), w)
 }

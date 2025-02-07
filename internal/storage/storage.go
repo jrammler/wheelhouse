@@ -54,6 +54,10 @@ func (s *JsonStorage) GetCommands(ctx context.Context) ([]entity.Command, error)
 	if err != nil {
 		return nil, err
 	}
+	if config.Commands == nil {
+		slog.Warn("No Commands found in configuration file", "path", s.filepath)
+		return make([]entity.Command, 0), nil
+	}
 	return config.Commands, nil
 }
 

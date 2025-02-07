@@ -1,6 +1,6 @@
 package templates
 
-templ page() {
+templ emptyPage() {
 	<!DOCTYPE html />
 	<html lang="de">
 		<head>
@@ -10,10 +10,20 @@ templ page() {
 			<title>Wheelhouse</title>
 		</head>
 		<body>
-			<a href="/commands">Commands</a>
-			<a href="/executions">History</a>
-			<a href="/logout">Logout</a>
 			{ children... }
 		</body>
 	</html>
+}
+
+templ page() {
+	@emptyPage() {
+		<header>
+			<a href="/commands">Commands</a>
+			<a href="/executions">History</a>
+			<a href="/logout">Logout</a>
+		</header>
+		<main>
+			{ children... }
+		</main>
+	}
 }

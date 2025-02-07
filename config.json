@@ -7,5 +7,7 @@
         { "name": "false", "command": "false" },
         { "name": "sleep 2", "command": "seq 20 | xargs -I {} bash -c \"sleep 1 && echo {}\"" }
     ],
-    "users": []
+    "users": [
+        { "username": "admin", "passwordHash": "$2a$12$jWES6ld8Szh1k3vrgiy.RO2WcVlepnvzZk3KpwJ7OY44lKpO4beg2" }
+    ]
 }
