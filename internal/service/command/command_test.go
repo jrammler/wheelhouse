@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strconv"
 	"testing"
 
 	"github.com/jrammler/wheelhouse/internal/entity"
@@ -63,6 +64,17 @@ type mockStorage struct {
 
 func (m *mockStorage) GetCommands(ctx context.Context) ([]entity.Command, error) {
 	return m.commands, nil
+}
+
+func (m *mockStorage) GetCommandById(ctx context.Context, id string) (*entity.Command, error) {
+	num, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, CommandNotFoundError
+	}
+	if num < 0 || num >= len(m.commands) {
+		return nil, CommandNotFoundError
+	}
+	return &m.commands[num], nil
 }
 
 func (m *mockStorage) GetUser(ctx context.Context, username string) (entity.User, error) {
@@ -126,7 +138,7 @@ func TestExecuteCommand_ValidID(t *testing.T) {
 	cs := NewCommandService(mockSt, mockComm)
 
 	// Act
-	execID, err := cs.ExecuteCommand(context.Background(), 0) // Execute "Echo"
+	execID, err := cs.ExecuteCommand(context.Background(), "0") // Execute "Echo"
 
 	// Assert
 	if err != nil {
@@ -169,7 +181,7 @@ func TestExecuteCommand_InvalidID(t *testing.T) {
 	cs := NewCommandService(mockSt, &mockCommander{})
 
 	// Act
-	_, err := cs.ExecuteCommand(context.Background(), 0)
+	_, err := cs.ExecuteCommand(context.Background(), "0")
 
 	// Assert
 	if err == nil {
@@ -207,7 +219,7 @@ func TestExecuteCommand_CommandFailure(t *testing.T) {
 	cs := NewCommandService(mockSt, mockComm)
 
 	// Act
-	execID, err := cs.ExecuteCommand(context.Background(), 0)
+	execID, err := cs.ExecuteCommand(context.Background(), "0")
 
 	// Assert
 	if err != nil {
@@ -261,7 +273,7 @@ func TestExecuteCommand_OutputCapture(t *testing.T) {
 	cs := NewCommandService(mockSt, mockComm)
 
 	// Act
-	execID, err := cs.ExecuteCommand(context.Background(), 0)
+	execID, err := cs.ExecuteCommand(context.Background(), "0")
 
 	// Assert
 	if err != nil {
@@ -309,7 +321,7 @@ func TestGetExecutionHistory(t *testing.T) {
 
 	cs := NewCommandService(mockSt, mockComm)
 
-	_, err := cs.ExecuteCommand(context.Background(), 0)
+	_, err := cs.ExecuteCommand(context.Background(), "0")
 	if err != nil {
 		t.Fatalf("ExecuteCommand failed: %v", err)
 	}
@@ -347,7 +359,7 @@ func TestGetExecution(t *testing.T) {
 
 	cs := NewCommandService(mockSt, mockComm)
 
-	execID, err := cs.ExecuteCommand(context.Background(), 0)
+	execID, err := cs.ExecuteCommand(context.Background(), "0")
 	if err != nil {
 		t.Fatalf("ExecuteCommand failed: %v", err)
 	}
@@ -366,8 +378,8 @@ func TestGetExecution(t *testing.T) {
 		t.Errorf("Expected ExecId %d, got %d", execID, exec.ExecId)
 	}
 
-	if exec.CommandId != 0 {
-		t.Errorf("Expected CommandId 0, got %d", exec.CommandId)
+	if exec.CommandId != "0" {
+		t.Errorf("Expected CommandId 0, got %s", exec.CommandId)
 	}
 
 	if exec.ExitCode == nil || *exec.ExitCode != 0 {

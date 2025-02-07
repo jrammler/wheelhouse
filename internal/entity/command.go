@@ -5,6 +5,7 @@ import "time"
 type Command struct {
 	Name    string  `json:"name"`
 	Command string  `json:"command"`
+	Id      string  `json:"-"`
 	Role    *string `json:"role,omitempty"`
 }
 
@@ -15,7 +16,7 @@ type LogEntry struct {
 
 type CommandExecution struct {
 	ExecId    int
-	CommandId int
+	CommandId string
 	ExecTime  time.Time
 	ExitCode  *int
 	Log       []LogEntry

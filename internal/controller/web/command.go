@@ -30,11 +30,7 @@ func handleCommandsGet(service *service.Service) http.HandlerFunc {
 
 func handleExecutePost(service *service.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		id := r.PathValue("id")
 		execId, err := service.CommandService.ExecuteCommand(r.Context(), id)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)

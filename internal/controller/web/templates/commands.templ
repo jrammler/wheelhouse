@@ -11,8 +11,8 @@ templ Commands(commands []entity.Command) {
 	@page() {
 		<h1>Commands</h1>
 		<ul>
-			for i, command := range commands {
-				<li><form action={ templ.URL(fmt.Sprintf("/execute/%d", i)) } method="post"><button>{ command.Name }</button></form></li>
+			for _, command := range commands {
+				<li><form action={ templ.URL(fmt.Sprintf("/execute/%s", command.Id)) } method="post"><button>{ command.Name }</button></form></li>
 			}
 		</ul>
 	}

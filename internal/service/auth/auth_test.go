@@ -18,6 +18,10 @@ func (m *mockStorage) GetCommands(ctx context.Context) ([]entity.Command, error)
 	return nil, errors.New("not supported")
 }
 
+func (m *mockStorage) GetCommandById(ctx context.Context, id string) (*entity.Command, error) {
+	return nil, errors.New("not supported")
+}
+
 func (m *mockStorage) GetUser(ctx context.Context, username string) (entity.User, error) {
 	if m.err != nil {
 		return entity.User{}, m.err

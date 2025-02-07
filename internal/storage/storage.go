@@ -2,13 +2,16 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
 	"sync"
 
-	"github.com/jrammler/wheelhouse/internal/entity"
 	"log/slog"
+
+	"github.com/jrammler/wheelhouse/internal/entity"
 )
 
 var UserNotFoundError = errors.New("User not found")
@@ -20,14 +23,16 @@ type config struct {
 
 type Storage interface {
 	GetCommands(ctx context.Context) ([]entity.Command, error)
+	GetCommandById(ctx context.Context, id string) (*entity.Command, error)
 	GetUser(ctx context.Context, username string) (entity.User, error)
 	LoadConfig() error
 }
 
 type JsonStorage struct {
-	filepath string
-	config   *config
-	mu       sync.RWMutex
+	filepath       string
+	config         *config
+	commandsByHash map[string]*entity.Command
+	mu             sync.RWMutex
 }
 
 func NewJsonStorage(filepath string) (Storage, error) {
@@ -55,8 +60,17 @@ func (s *JsonStorage) LoadConfig() error {
 		return err
 	}
 
+	hashedCommands := make(map[string]*entity.Command)
+	for i, command := range cfg.Commands {
+		hash := sha256.Sum256([]byte(command.Command))
+		hexHash := hex.EncodeToString(hash[:])
+		cfg.Commands[i].Id = hexHash
+		hashedCommands[hexHash] = &command
+	}
+
 	s.mu.Lock()
 	s.config = cfg
+	s.commandsByHash = hashedCommands
 	s.mu.Unlock()
 	return nil
 }
@@ -69,9 +83,18 @@ func (s *JsonStorage) GetCommands(ctx context.Context) ([]entity.Command, error)
 	}
 	if s.config.Commands == nil {
 		slog.Warn("No Commands found in configuration file", "path", s.filepath)
-		return make([]entity.Command, 0), nil
+		return nil, nil
 	}
 	return s.config.Commands, nil
+}
+
+func (s *JsonStorage) GetCommandById(ctx context.Context, id string) (*entity.Command, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.commandsByHash == nil {
+		return nil, errors.New("config not loaded")
+	}
+	return s.commandsByHash[id], nil
 }
 
 func (s *JsonStorage) GetUser(ctx context.Context, username string) (entity.User, error) {

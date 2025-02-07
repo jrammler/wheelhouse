@@ -109,12 +109,12 @@ func pipeStreamToLog(wg *sync.WaitGroup, e *lockedCommandExecution, stream strin
 	}()
 }
 
-func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error) {
-	commands, err := s.storage.GetCommands(ctx)
+func (s *CommandService) ExecuteCommand(ctx context.Context, id string) (int, error) {
+	command, err := s.storage.GetCommandById(ctx, id)
 	if err != nil {
 		return 0, err
 	}
-	if id < 0 || id >= len(commands) {
+	if command == nil {
 		return 0, CommandNotFoundError
 	}
 	execution := lockedCommandExecution{
@@ -129,7 +129,6 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error
 	s.history = append(s.history, &execution)
 	s.historyMutex.Unlock()
 
-	command := commands[id]
 	slog.InfoContext(ctx, "Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
 	cmd := s.commander.Command("bash", "-c", command.Command)
 	stdout, err := cmd.StdoutPipe()
@@ -157,20 +156,20 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id int) (int, error
 }
 
 func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]entity.ExecutionHistoryEntry, error) {
-	commands, err := s.storage.GetCommands(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	s.historyMutex.RLock()
 	defer s.historyMutex.RUnlock()
 
 	history := make([]entity.ExecutionHistoryEntry, len(s.history))
 	for i, execution := range s.history {
+		command, err := s.storage.GetCommandById(ctx, execution.execution.CommandId)
+		name := "Command not found"
+		if err == nil && command != nil {
+			name = command.Name
+		}
 		history[i] = entity.ExecutionHistoryEntry{
 			ExecId:      i,
 			Time:        execution.execution.ExecTime,
-			CommandName: commands[execution.execution.CommandId].Name,
+			CommandName: name,
 		}
 	}
 
