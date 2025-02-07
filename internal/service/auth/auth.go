@@ -37,8 +37,8 @@ func (s session) isExpired() bool {
 	return s.expiration.Before(time.Now())
 }
 
-func hashPassword(password string) ([]byte, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+func HashPassword(password string) ([]byte, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	return bytes, err
 }
 
