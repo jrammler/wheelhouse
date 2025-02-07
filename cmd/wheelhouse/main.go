@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"syscall"
 
 	"github.com/jrammler/wheelhouse/internal/controller/web"
@@ -37,7 +38,26 @@ func usageExit() {
 }
 
 func serve(addr string, storagePath string) {
-	sto := storage.NewJsonStorage(storagePath)
+	sto, err := storage.NewJsonStorage(storagePath)
+	if err != nil {
+		slog.Error("Error initializing storage", "error", err)
+		os.Exit(1)
+	}
+
+	// Set up signal handling for config reload
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGHUP) // Listen for SIGHUP
+	go func() {
+		for sig := range signalChan {
+			slog.Info("Received signal", "signal", sig)
+			err := sto.LoadConfig()
+			if err != nil {
+				slog.Error("Failed to reload config. Continuing with previous config", "error", err)
+			} else {
+				slog.Info("Config reloaded successfully")
+			}
+		}
+	}()
 
 	ser := &service.Service{
 		CommandService: command.NewCommandService(sto, nil),
@@ -45,7 +65,7 @@ func serve(addr string, storagePath string) {
 	}
 
 	server := web.NewServer(ser)
-	err := server.Serve(addr)
+	err = server.Serve(addr)
 	if err != nil {
 		slog.Error("Error reading password", "error", err)
 		os.Exit(1)

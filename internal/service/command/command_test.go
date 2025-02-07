@@ -74,6 +74,10 @@ func (m *mockStorage) GetUser(ctx context.Context, username string) (entity.User
 	return entity.User{}, storage.UserNotFoundError
 }
 
+func (m *mockStorage) LoadConfig() error {
+	return nil
+}
+
 func TestGetCommands(t *testing.T) {
 	// Arrange
 	mockCmds := []entity.Command{

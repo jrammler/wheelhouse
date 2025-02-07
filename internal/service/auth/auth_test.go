@@ -25,6 +25,10 @@ func (m *mockStorage) GetUser(ctx context.Context, username string) (entity.User
 	return m.user, nil
 }
 
+func (m *mockStorage) LoadConfig() error {
+	return nil
+}
+
 func TestLoginUser(t *testing.T) {
 	testCases := []struct {
 		name          string

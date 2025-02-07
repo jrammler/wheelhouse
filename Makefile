@@ -4,8 +4,8 @@ TEMPL_GO_FILES := $(TEMPL_FILES:.templ=_templ.go)
 
 SOURCES := $(GO_FILES) $(TEMPL_FILES)
 
-main: $(GO_FILES) $(TEMPL_GO_FILES)
-	go build cmd/wheelhouse/main.go
+wheelhouse: $(GO_FILES) $(TEMPL_GO_FILES)
+	go build ./cmd/wheelhouse
 
 .PHONY: test
 test:
@@ -18,8 +18,8 @@ coverage:
 	rm coverage.out
 
 .PHONY: run
-run: main
-	./main serve :8080 config.json
+run: wheelhouse
+	./wheelhouse serve :8080 config.json
 
 .PHONY: format
 format:
@@ -27,7 +27,7 @@ format:
 	go fmt ./...
 
 .PHONY: watch
-watch: main
+watch: wheelhouse
 	echo $(SOURCES) | tr " " "\n" | entr -dr make run
 
 %_templ.go: %.templ
