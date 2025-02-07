@@ -16,7 +16,7 @@ func NewServer(service *service.Service) *Server {
 	}
 }
 
-func (s *Server) Serve() error {
+func (s *Server) Serve(addr string) error {
 	mux := http.NewServeMux()
 
 	authenticatedMux := SetupAuthentication(s.service, mux)
@@ -24,7 +24,7 @@ func (s *Server) Serve() error {
 
 	SetupCommandMux(s.service, authenticatedMux)
 
-	return http.ListenAndServe(":8080", mux)
+	return http.ListenAndServe(addr, mux)
 }
 
 func (s *Server) handleIndexGet(w http.ResponseWriter, r *http.Request) {
@@ -32,5 +32,5 @@ func (s *Server) handleIndexGet(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	http.Redirect(w, r, "/commands", http.StatusMovedPermanently)
+	http.Redirect(w, r, "/commands", http.StatusFound)
 }

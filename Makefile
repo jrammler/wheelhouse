@@ -19,7 +19,7 @@ coverage:
 
 .PHONY: run
 run: main
-	./main 8080
+	./main serve :8080
 
 .PHONY: format
 format:
