@@ -19,7 +19,7 @@ coverage:
 
 .PHONY: run
 run: main
-	./main serve :8080
+	./main serve :8080 config.json
 
 .PHONY: format
 format:

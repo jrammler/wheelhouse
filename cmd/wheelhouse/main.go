@@ -20,10 +20,10 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "serve":
-		if len(os.Args) != 3 {
+		if len(os.Args) < 4 {
 			usageExit()
 		}
-		serve(os.Args[2])
+		serve(os.Args[2], os.Args[3])
 	case "hash-password":
 		hashPassword()
 	default:
@@ -32,12 +32,12 @@ func main() {
 }
 
 func usageExit() {
-	fmt.Fprintf(os.Stderr, "Usage: %s [serve <addr> | hash-password]\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Usage: %s [serve <addr> <config-file> | hash-password]\n", os.Args[0])
 	os.Exit(1)
 }
 
-func serve(addr string) {
-	sto := storage.NewJsonStorage("config.json")
+func serve(addr string, storagePath string) {
+	sto := storage.NewJsonStorage(storagePath)
 
 	ser := &service.Service{
 		CommandService: command.NewCommandService(sto, nil),
