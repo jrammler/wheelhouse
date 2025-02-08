@@ -83,11 +83,11 @@ func TestLoginUser(t *testing.T) {
 
 			if tc.expectedError != nil {
 				if !errors.Is(err, tc.expectedError) {
-					t.Errorf("Expected %v, got %v", tc.expectedError, err)
+					t.Errorf("Expected %q, got %q", tc.expectedError, err)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("Unexpected error %v", err)
+					t.Errorf("Unexpected error %q", err)
 				}
 			}
 		})
@@ -98,7 +98,7 @@ func TestLogoutUser(t *testing.T) {
 	authService := NewAuthService(&mockStorage{})
 	token, err := generateSessionToken()
 	if err != nil {
-		t.Errorf("Unexpected error %v", err)
+		t.Errorf("Unexpected error %q", err)
 	}
 	authService.sessions[token] = session{
 		user:       entity.User{Username: "test"},
@@ -160,10 +160,10 @@ func TestGetSessionUser(t *testing.T) {
 			user, err := authService.GetSessionUser(context.Background(), tc.sessionToken)
 
 			if user.Username != tc.expectedUser.Username {
-				t.Errorf("Expected username '%s' but got '%s'", tc.expectedUser.Username, user.Username)
+				t.Errorf("Expected username %q but got %q", tc.expectedUser.Username, user.Username)
 			}
 			if !errors.Is(err, tc.expectedError) {
-				t.Errorf("Unexpected error %v, expected %v", err, tc.expectedError)
+				t.Errorf("Unexpected error %q, expected %q", err, tc.expectedError)
 			}
 		})
 	}

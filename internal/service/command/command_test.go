@@ -108,7 +108,7 @@ func TestGetCommands(t *testing.T) {
 
 	// Assert
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Expected no error, got %q", err)
 	}
 
 	if len(cmds) != len(mockCmds) {
@@ -142,7 +142,7 @@ func TestExecuteCommand_ValidID(t *testing.T) {
 
 	// Assert
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Expected no error, got %q", err)
 	}
 
 	cs.WaitExecutions(context.Background())
@@ -153,7 +153,7 @@ func TestExecuteCommand_ValidID(t *testing.T) {
 	}
 
 	if exec.ExitCode == nil || *exec.ExitCode != 0 {
-		t.Errorf("Expected exit code 0, got %v", exec.ExitCode)
+		t.Errorf("Expected exit code 0, got %d", exec.ExitCode)
 	}
 
 	if len(exec.Log) == 0 {
@@ -189,7 +189,7 @@ func TestExecuteCommand_InvalidID(t *testing.T) {
 	}
 
 	if !errors.Is(err, CommandNotFoundError) {
-		t.Errorf("Expected CommandNotFoundError, got %v", err)
+		t.Errorf("Expected CommandNotFoundError, got %q", err)
 	}
 }
 
@@ -223,7 +223,7 @@ func TestExecuteCommand_CommandFailure(t *testing.T) {
 
 	// Assert
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommand failed: %q", err)
 	}
 
 	cs.WaitExecutions(context.Background())
@@ -277,7 +277,7 @@ func TestExecuteCommand_OutputCapture(t *testing.T) {
 
 	// Assert
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommand failed: %q", err)
 	}
 
 	cs.WaitExecutions(context.Background())
@@ -323,7 +323,7 @@ func TestGetExecutionHistory(t *testing.T) {
 
 	_, err := cs.ExecuteCommand(context.Background(), "0")
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommand failed: %q", err)
 	}
 
 	cs.WaitExecutions(context.Background())
@@ -333,7 +333,7 @@ func TestGetExecutionHistory(t *testing.T) {
 
 	// Assert
 	if err != nil {
-		t.Fatalf("GetExecutionHistory failed: %v", err)
+		t.Fatalf("GetExecutionHistory failed: %q", err)
 	}
 
 	if len(history) != 1 {
@@ -341,7 +341,7 @@ func TestGetExecutionHistory(t *testing.T) {
 	}
 
 	if history[0].CommandName != "Echo" {
-		t.Errorf("Expected CommandName 'Echo', got '%s'", history[0].CommandName)
+		t.Errorf("Expected CommandName 'Echo', got %q", history[0].CommandName)
 	}
 }
 
@@ -361,7 +361,7 @@ func TestGetExecution(t *testing.T) {
 
 	execID, err := cs.ExecuteCommand(context.Background(), "0")
 	if err != nil {
-		t.Fatalf("ExecuteCommand failed: %v", err)
+		t.Fatalf("ExecuteCommand failed: %q", err)
 	}
 
 	cs.WaitExecutions(context.Background())

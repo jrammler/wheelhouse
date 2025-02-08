@@ -129,7 +129,7 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id string) (int, er
 	s.history = append(s.history, &execution)
 	s.historyMutex.Unlock()
 
-	slog.InfoContext(ctx, "Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
+	slog.Debug("Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
 	cmd := s.commander.Command("bash", "-c", command.Command)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -145,11 +145,11 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id string) (int, er
 	go func() {
 		err = cmd.Run()
 		if err != nil {
-			slog.InfoContext(ctx, "Command returned error", "error", err.Error())
+			slog.Debug("Command returned error", "error", err)
 		}
 		exitCode := cmd.ExitCode()
 		execution.execution.ExitCode = &exitCode
-		slog.InfoContext(ctx, "Executing command completed")
+		slog.Debug("Executing command completed")
 		s.execWaitGroup.Done()
 	}()
 	return execution.execution.ExecId, nil
