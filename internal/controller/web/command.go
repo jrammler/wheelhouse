@@ -19,7 +19,12 @@ func SetupCommandMux(service *service.Service, mux *http.ServeMux) {
 
 func handleCommandsGet(service *service.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		commands, err := service.CommandService.GetCommands(r.Context())
+		user, err := GetUser(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		commands, err := service.CommandService.GetCommands(r.Context(), user)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -30,8 +35,13 @@ func handleCommandsGet(service *service.Service) http.HandlerFunc {
 
 func handleExecutePost(service *service.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		user, err := GetUser(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		id := r.PathValue("id")
-		execId, err := service.CommandService.ExecuteCommand(r.Context(), id)
+		execId, err := service.CommandService.ExecuteCommand(r.Context(), user, id)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -42,7 +52,12 @@ func handleExecutePost(service *service.Service) http.HandlerFunc {
 
 func handleExecutionsGet(service *service.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		history, err := service.CommandService.GetExecutionHistory(r.Context())
+		user, err := GetUser(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		history, err := service.CommandService.GetExecutionHistory(r.Context(), user)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -59,9 +74,14 @@ func handleExecutionDetailsGet(service *service.Service) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		execution := service.CommandService.GetExecution(r.Context(), id)
-		if execution == nil {
-			http.NotFound(w, r)
+		user, err := GetUser(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		execution, err := service.CommandService.GetExecution(r.Context(), user, id)
+		if err != nil || execution == nil {
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		templates.ExecutionDetails(execution).Render(r.Context(), w)
@@ -78,12 +98,18 @@ func handleExecutionLogGet(service *service.Service) http.HandlerFunc {
 		}
 		startStr := r.FormValue("start")
 		start, err := strconv.Atoi(startStr)
-		if err != nil {
-			start = 0
+		if err != nil && startStr != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
-		execution := service.CommandService.GetExecution(r.Context(), id)
-		if execution == nil {
-			http.NotFound(w, r)
+		user, err := GetUser(r.Context())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		execution, err := service.CommandService.GetExecution(r.Context(), user, id)
+		if err != nil || execution == nil {
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		templates.LogList(execution, &start).Render(r.Context(), w)

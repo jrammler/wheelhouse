@@ -8,10 +8,10 @@ import (
 )
 
 type CommandService interface {
-	GetCommands(ctx context.Context) ([]entity.Command, error)
-	ExecuteCommand(ctx context.Context, id string) (int, error)
-	GetExecutionHistory(ctx context.Context) ([]entity.ExecutionHistoryEntry, error)
-	GetExecution(ctx context.Context, execId int) *entity.CommandExecution
+	GetCommands(ctx context.Context, user entity.User) ([]entity.Command, error)
+	ExecuteCommand(ctx context.Context, user entity.User, id string) (int, error)
+	GetExecutionHistory(ctx context.Context, user entity.User) ([]entity.ExecutionHistoryEntry, error)
+	GetExecution(ctx context.Context, user entity.User, execId int) (*entity.CommandExecution, error)
 	WaitExecutions(ctx context.Context)
 }
 

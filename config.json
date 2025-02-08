@@ -5,9 +5,10 @@
         { "name": "echo 2", "command": "echo \"Hello World\" 1>&2 && false" },
         { "name": "echo 3", "command": "echo this is stderr 1>&2 && echo this is stdout" },
         { "name": "false", "command": "false" },
-        { "name": "sleep 2", "command": "seq 20 | xargs -I {} bash -c \"sleep 1 && echo {}\"" }
+        { "name": "admin sleep 2", "command": "seq 20 | xargs -I {} bash -c \"sleep 1 && echo {}\"", "role": "admin" }
     ],
     "users": [
-        { "username": "admin", "password_hash": "$2a$12$jWES6ld8Szh1k3vrgiy.RO2WcVlepnvzZk3KpwJ7OY44lKpO4beg2" }
+        { "username": "admin", "password_hash": "$2a$12$jWES6ld8Szh1k3vrgiy.RO2WcVlepnvzZk3KpwJ7OY44lKpO4beg2", "roles": [ "admin" ] },
+        { "username": "user1", "password_hash": "$2a$12$jWES6ld8Szh1k3vrgiy.RO2WcVlepnvzZk3KpwJ7OY44lKpO4beg2" }
     ]
 }

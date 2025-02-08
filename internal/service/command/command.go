@@ -16,6 +16,7 @@ import (
 )
 
 var CommandNotFoundError = errors.New("Command with given ID not found")
+var UnauthorizedError = errors.New("User is not authorized to execute this command")
 
 type Command interface {
 	Run() error
@@ -85,12 +86,20 @@ func NewCommandService(storage storage.Storage, commander Commander) *CommandSer
 	return &s
 }
 
-func (s *CommandService) GetCommands(ctx context.Context) ([]entity.Command, error) {
+func (s *CommandService) GetCommands(ctx context.Context, user entity.User) ([]entity.Command, error) {
 	commands, err := s.storage.GetCommands(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return commands, nil
+
+	filteredCommands := make([]entity.Command, 0)
+	for _, command := range commands {
+		if command.Role == nil || userHasRole(user, *command.Role) {
+			filteredCommands = append(filteredCommands, command)
+		}
+	}
+
+	return filteredCommands, nil
 }
 
 func pipeStreamToLog(wg *sync.WaitGroup, e *lockedCommandExecution, stream string, pipe io.Reader) {
@@ -109,7 +118,7 @@ func pipeStreamToLog(wg *sync.WaitGroup, e *lockedCommandExecution, stream strin
 	}()
 }
 
-func (s *CommandService) ExecuteCommand(ctx context.Context, id string) (int, error) {
+func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, id string) (int, error) {
 	command, err := s.storage.GetCommandById(ctx, id)
 	if err != nil {
 		return 0, err
@@ -117,6 +126,11 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id string) (int, er
 	if command == nil {
 		return 0, CommandNotFoundError
 	}
+
+	if command.Role != nil && !userHasRole(user, *command.Role) {
+		return 0, UnauthorizedError
+	}
+
 	execution := lockedCommandExecution{
 		execution: entity.CommandExecution{
 			CommandId: id,
@@ -155,22 +169,27 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, id string) (int, er
 	return execution.execution.ExecId, nil
 }
 
-func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]entity.ExecutionHistoryEntry, error) {
+func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.User) ([]entity.ExecutionHistoryEntry, error) {
 	s.historyMutex.RLock()
 	defer s.historyMutex.RUnlock()
 
-	history := make([]entity.ExecutionHistoryEntry, len(s.history))
+	history := make([]entity.ExecutionHistoryEntry, 0)
 	for i, execution := range s.history {
 		command, err := s.storage.GetCommandById(ctx, execution.execution.CommandId)
-		name := "Command not found"
-		if err == nil && command != nil {
-			name = command.Name
+		if err != nil || command == nil {
+			slog.Error("command not found", "command_id", execution.execution.CommandId)
+			continue
 		}
-		history[i] = entity.ExecutionHistoryEntry{
+
+		if command.Role != nil && !userHasRole(user, *command.Role) {
+			continue
+		}
+
+		history = append(history, entity.ExecutionHistoryEntry{
 			ExecId:      i,
 			Time:        execution.execution.ExecTime,
-			CommandName: name,
-		}
+			CommandName: command.Name,
+		})
 	}
 
 	slices.SortFunc(history, func(a, b entity.ExecutionHistoryEntry) int {
@@ -179,16 +198,32 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context) ([]entity.Exec
 	return history, nil
 }
 
-func (s *CommandService) GetExecution(ctx context.Context, execId int) *entity.CommandExecution {
+func (s *CommandService) GetExecution(ctx context.Context, user entity.User, execId int) (*entity.CommandExecution, error) {
 	s.historyMutex.RLock()
 	defer s.historyMutex.RUnlock()
 
 	if execId < 0 || execId >= len(s.history) {
-		return nil
+		return nil, CommandNotFoundError
 	}
-	return &s.history[execId].execution
+	execution := &s.history[execId].execution
+
+	command, err := s.storage.GetCommandById(ctx, execution.CommandId)
+	if err != nil || command == nil {
+		slog.Error("command not found", "command_id", execution.CommandId)
+		return nil, CommandNotFoundError
+	}
+
+	if command.Role != nil && !userHasRole(user, *command.Role) {
+		return nil, UnauthorizedError
+	}
+
+	return execution, nil
 }
 
 func (s *CommandService) WaitExecutions(ctx context.Context) {
 	s.execWaitGroup.Wait()
+}
+
+func userHasRole(user entity.User, role string) bool {
+	return slices.Contains(user.Roles, role)
 }

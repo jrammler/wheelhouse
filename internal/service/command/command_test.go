@@ -92,9 +92,16 @@ func (m *mockStorage) LoadConfig() error {
 
 func TestGetCommands(t *testing.T) {
 	// Arrange
+	role1 := "admin"
+	role2 := "developer"
 	mockCmds := []entity.Command{
 		{Name: "List", Command: "ls -la"},
-		{Name: "Echo", Command: "echo Hello"},
+		{Name: "Echo secret", Command: "echo $SECRET", Role: &role1},
+		{Name: "Echo", Command: "echo Hello", Role: &role2},
+	}
+	expectedCmds := []entity.Command{
+		mockCmds[0],
+		mockCmds[2],
 	}
 
 	mockSt := &mockStorage{
@@ -104,20 +111,20 @@ func TestGetCommands(t *testing.T) {
 	cs := NewCommandService(mockSt, &mockCommander{})
 
 	// Act
-	cmds, err := cs.GetCommands(context.Background())
+	cmds, err := cs.GetCommands(context.Background(), entity.User{Roles: []string{"developer"}})
 
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, got %q", err)
 	}
 
-	if len(cmds) != len(mockCmds) {
-		t.Fatalf("Expected %d commands, got %d", len(mockCmds), len(cmds))
+	if len(cmds) != len(expectedCmds) {
+		t.Fatalf("Expected %d commands, got %d", len(expectedCmds), len(cmds))
 	}
 
 	for i, cmd := range cmds {
-		if cmd.Name != mockCmds[i].Name || cmd.Command != mockCmds[i].Command {
-			t.Errorf("Expected command %v, got %v", mockCmds[i], cmd)
+		if cmd.Name != expectedCmds[i].Name || cmd.Command != expectedCmds[i].Command {
+			t.Errorf("Expected command %v, got %v", expectedCmds[i], cmd)
 		}
 	}
 }
@@ -138,7 +145,7 @@ func TestExecuteCommand_ValidID(t *testing.T) {
 	cs := NewCommandService(mockSt, mockComm)
 
 	// Act
-	execID, err := cs.ExecuteCommand(context.Background(), "0") // Execute "Echo"
+	execID, err := cs.ExecuteCommand(context.Background(), entity.User{}, "0") // Execute "Echo"
 
 	// Assert
 	if err != nil {
@@ -147,7 +154,10 @@ func TestExecuteCommand_ValidID(t *testing.T) {
 
 	cs.WaitExecutions(context.Background())
 
-	exec := cs.GetExecution(context.Background(), execID)
+	exec, err := cs.GetExecution(context.Background(), entity.User{}, execID)
+	if err != nil {
+		t.Fatalf("Got error %q when getting execution", err)
+	}
 	if exec == nil {
 		t.Fatalf("Expected execution with ID %d, got nil", execID)
 	}
@@ -181,7 +191,7 @@ func TestExecuteCommand_InvalidID(t *testing.T) {
 	cs := NewCommandService(mockSt, &mockCommander{})
 
 	// Act
-	_, err := cs.ExecuteCommand(context.Background(), "0")
+	_, err := cs.ExecuteCommand(context.Background(), entity.User{}, "0")
 
 	// Assert
 	if err == nil {
@@ -190,6 +200,31 @@ func TestExecuteCommand_InvalidID(t *testing.T) {
 
 	if !errors.Is(err, CommandNotFoundError) {
 		t.Errorf("Expected CommandNotFoundError, got %q", err)
+	}
+}
+
+func TestExecuteCommand_Unauthorized(t *testing.T) {
+	// Arrange
+	role := "admin"
+	mockCmds := []entity.Command{
+		{Name: "Echo", Command: "echo Hello", Role: &role},
+	}
+	mockSt := &mockStorage{
+		commands: mockCmds,
+	}
+
+	cs := NewCommandService(mockSt, &mockCommander{})
+
+	// Act
+	_, err := cs.ExecuteCommand(context.Background(), entity.User{Roles: []string{"developer"}}, "0")
+
+	// Assert
+	if err == nil {
+		t.Fatalf("Expected error for invalid command ID, got none")
+	}
+
+	if !errors.Is(err, UnauthorizedError) {
+		t.Errorf("Expected UnauthorizedError, got %q", err)
 	}
 }
 
@@ -219,7 +254,7 @@ func TestExecuteCommand_CommandFailure(t *testing.T) {
 	cs := NewCommandService(mockSt, mockComm)
 
 	// Act
-	execID, err := cs.ExecuteCommand(context.Background(), "0")
+	execID, err := cs.ExecuteCommand(context.Background(), entity.User{}, "0")
 
 	// Assert
 	if err != nil {
@@ -228,7 +263,10 @@ func TestExecuteCommand_CommandFailure(t *testing.T) {
 
 	cs.WaitExecutions(context.Background())
 
-	exec := cs.GetExecution(context.Background(), execID)
+	exec, err := cs.GetExecution(context.Background(), entity.User{}, execID)
+	if err != nil {
+		t.Fatalf("Got error %q when getting execution", err)
+	}
 	if exec == nil {
 		t.Fatalf("Expected execution with ID %d, got nil", execID)
 	}
@@ -273,7 +311,7 @@ func TestExecuteCommand_OutputCapture(t *testing.T) {
 	cs := NewCommandService(mockSt, mockComm)
 
 	// Act
-	execID, err := cs.ExecuteCommand(context.Background(), "0")
+	execID, err := cs.ExecuteCommand(context.Background(), entity.User{}, "0")
 
 	// Assert
 	if err != nil {
@@ -282,7 +320,10 @@ func TestExecuteCommand_OutputCapture(t *testing.T) {
 
 	cs.WaitExecutions(context.Background())
 
-	exec := cs.GetExecution(context.Background(), execID)
+	exec, err := cs.GetExecution(context.Background(), entity.User{}, execID)
+	if err != nil {
+		t.Fatalf("Got error %q when getting execution", err)
+	}
 	if exec == nil {
 		t.Fatalf("Expected execution with ID %d, got nil", execID)
 	}
@@ -321,7 +362,7 @@ func TestGetExecutionHistory(t *testing.T) {
 
 	cs := NewCommandService(mockSt, mockComm)
 
-	_, err := cs.ExecuteCommand(context.Background(), "0")
+	_, err := cs.ExecuteCommand(context.Background(), entity.User{}, "0")
 	if err != nil {
 		t.Fatalf("ExecuteCommand failed: %q", err)
 	}
@@ -329,7 +370,7 @@ func TestGetExecutionHistory(t *testing.T) {
 	cs.WaitExecutions(context.Background())
 
 	// Act
-	history, err := cs.GetExecutionHistory(context.Background())
+	history, err := cs.GetExecutionHistory(context.Background(), entity.User{})
 
 	// Assert
 	if err != nil {
@@ -359,7 +400,7 @@ func TestGetExecution(t *testing.T) {
 
 	cs := NewCommandService(mockSt, mockComm)
 
-	execID, err := cs.ExecuteCommand(context.Background(), "0")
+	execID, err := cs.ExecuteCommand(context.Background(), entity.User{}, "0")
 	if err != nil {
 		t.Fatalf("ExecuteCommand failed: %q", err)
 	}
@@ -367,9 +408,12 @@ func TestGetExecution(t *testing.T) {
 	cs.WaitExecutions(context.Background())
 
 	// Act
-	exec := cs.GetExecution(context.Background(), execID)
+	exec, err := cs.GetExecution(context.Background(), entity.User{}, execID)
 
 	// Assert
+	if err != nil {
+		t.Fatalf("Got error %q when getting execution", err)
+	}
 	if exec == nil {
 		t.Fatalf("Expected execution with ID %d, got nil", execID)
 	}
