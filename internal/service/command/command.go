@@ -97,7 +97,7 @@ func (s *CommandService) GetCommands(ctx context.Context, user entity.User) ([]e
 	return filteredCommands, nil
 }
 
-func pipeStreamToLog(e *entity.CommandExecution, stream string, pipe io.Reader, logChan chan<- entity.LogEntry, doneChan chan<- int) {
+func pipeStreamToLog(stream string, pipe io.Reader, logChan chan<- entity.LogEntry, doneChan chan<- int) {
 	go func() {
 		scanner := bufio.NewScanner(pipe)
 		for scanner.Scan() {
@@ -133,7 +133,7 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 	s.history = append(s.history, &execution)
 	s.historyMutex.Unlock()
 
-	slog.Debug("Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
+	slog.Info("Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
 	cmd := s.commander.Command("bash", "-c", command.Command)
 
 	logChan := make(chan entity.LogEntry)
@@ -142,17 +142,17 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 	if err != nil {
 		return 0, err
 	}
-	pipeStreamToLog(&execution, "stdout", stdout, logChan, doneChan)
+	pipeStreamToLog("stdout", stdout, logChan, doneChan)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return 0, err
 	}
-	pipeStreamToLog(&execution, "stderr", stderr, logChan, doneChan)
+	pipeStreamToLog("stderr", stderr, logChan, doneChan)
 
 	allDone := make(chan any)
 	go func() {
 		doneCnt := 0
-        // read from log channel until both stdout and stderr are closed
+		// read from log channel until both stdout and stderr are closed
 		for doneCnt < 2 {
 			select {
 			case log := <-logChan:
@@ -168,13 +168,13 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 	go func() {
 		err = cmd.Run()
 		if err != nil {
-			slog.Debug("Command returned error", "error", err)
+			slog.Info("Command returned error", "error", err)
 		}
-        // only set exit code once log is fully written
+		// only set exit code once log is fully written
 		<-allDone
 		exitCode := cmd.ExitCode()
 		execution.ExitCode = &exitCode
-		slog.Debug("Executing command completed")
+		slog.Info("Executing command completed")
 		s.execWaitGroup.Done()
 	}()
 	return execution.ExecId, nil
