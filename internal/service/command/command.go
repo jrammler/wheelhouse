@@ -60,15 +60,10 @@ func (rc *execCommander) Command(name string, arg ...string) Command {
 	}
 }
 
-type lockedCommandExecution struct {
-	execution entity.CommandExecution
-	logMutex  sync.Mutex
-}
-
 type CommandService struct {
 	storage       storage.Storage
 	execWaitGroup *sync.WaitGroup
-	history       []*lockedCommandExecution
+	history       []*entity.CommandExecution
 	historyMutex  sync.RWMutex
 	commander     Commander
 }
@@ -80,7 +75,7 @@ func NewCommandService(storage storage.Storage, commander Commander) *CommandSer
 	s := CommandService{
 		storage:       storage,
 		execWaitGroup: &sync.WaitGroup{},
-		history:       make([]*lockedCommandExecution, 0),
+		history:       make([]*entity.CommandExecution, 0),
 		commander:     commander,
 	}
 	return &s
@@ -102,19 +97,16 @@ func (s *CommandService) GetCommands(ctx context.Context, user entity.User) ([]e
 	return filteredCommands, nil
 }
 
-func pipeStreamToLog(wg *sync.WaitGroup, e *lockedCommandExecution, stream string, pipe io.Reader) {
-	wg.Add(1)
+func pipeStreamToLog(e *entity.CommandExecution, stream string, pipe io.Reader, logChan chan<- entity.LogEntry, doneChan chan<- int) {
 	go func() {
 		scanner := bufio.NewScanner(pipe)
 		for scanner.Scan() {
-			e.logMutex.Lock()
-			e.execution.Log = append(e.execution.Log, entity.LogEntry{
+			logChan <- entity.LogEntry{
 				Stream: stream,
 				Data:   scanner.Text(),
-			})
-			e.logMutex.Unlock()
+			}
 		}
-		wg.Done()
+		doneChan <- 0
 	}()
 }
 
@@ -131,42 +123,61 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 		return 0, UnauthorizedError
 	}
 
-	execution := lockedCommandExecution{
-		execution: entity.CommandExecution{
-			CommandId: id,
-			ExecTime:  time.Now(),
-		},
+	execution := entity.CommandExecution{
+		CommandId: id,
+		ExecTime:  time.Now(),
 	}
 
 	s.historyMutex.Lock()
-	execution.execution.ExecId = len(s.history)
+	execution.ExecId = len(s.history)
 	s.history = append(s.history, &execution)
 	s.historyMutex.Unlock()
 
 	slog.Debug("Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
 	cmd := s.commander.Command("bash", "-c", command.Command)
+
+	logChan := make(chan entity.LogEntry)
+	doneChan := make(chan int)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return 0, err
 	}
-	pipeStreamToLog(s.execWaitGroup, &execution, "stdout", stdout)
+	pipeStreamToLog(&execution, "stdout", stdout, logChan, doneChan)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return 0, err
 	}
-	pipeStreamToLog(s.execWaitGroup, &execution, "stderr", stderr)
+	pipeStreamToLog(&execution, "stderr", stderr, logChan, doneChan)
+
+	allDone := make(chan any)
+	go func() {
+		doneCnt := 0
+        // read from log channel until both stdout and stderr are closed
+		for doneCnt < 2 {
+			select {
+			case log := <-logChan:
+				execution.Log = append(execution.Log, log)
+			case <-doneChan:
+				doneCnt += 1
+			}
+		}
+		close(allDone)
+	}()
+
 	s.execWaitGroup.Add(1)
 	go func() {
 		err = cmd.Run()
 		if err != nil {
 			slog.Debug("Command returned error", "error", err)
 		}
+        // only set exit code once log is fully written
+		<-allDone
 		exitCode := cmd.ExitCode()
-		execution.execution.ExitCode = &exitCode
+		execution.ExitCode = &exitCode
 		slog.Debug("Executing command completed")
 		s.execWaitGroup.Done()
 	}()
-	return execution.execution.ExecId, nil
+	return execution.ExecId, nil
 }
 
 func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.User) ([]entity.ExecutionHistoryEntry, error) {
@@ -175,9 +186,9 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.Us
 
 	history := make([]entity.ExecutionHistoryEntry, 0)
 	for i, execution := range s.history {
-		command, err := s.storage.GetCommandById(ctx, execution.execution.CommandId)
+		command, err := s.storage.GetCommandById(ctx, execution.CommandId)
 		if err != nil || command == nil {
-			slog.Error("command not found", "command_id", execution.execution.CommandId)
+			slog.Error("command not found", "command_id", execution.CommandId)
 			continue
 		}
 
@@ -187,7 +198,7 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.Us
 
 		history = append(history, entity.ExecutionHistoryEntry{
 			ExecId:      i,
-			Time:        execution.execution.ExecTime,
+			Time:        execution.ExecTime,
 			CommandName: command.Name,
 		})
 	}
@@ -205,7 +216,7 @@ func (s *CommandService) GetExecution(ctx context.Context, user entity.User, exe
 	if execId < 0 || execId >= len(s.history) {
 		return nil, CommandNotFoundError
 	}
-	execution := &s.history[execId].execution
+	execution := s.history[execId]
 
 	command, err := s.storage.GetCommandById(ctx, execution.CommandId)
 	if err != nil || command == nil {
