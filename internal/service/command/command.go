@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
+	"runtime"
 	"slices"
 	"sync"
 	"time"
@@ -64,6 +65,7 @@ type CommandService struct {
 	storage       storage.Storage
 	execWaitGroup *sync.WaitGroup
 	history       []*entity.CommandExecution
+	historyOffset int
 	historyMutex  sync.RWMutex
 	commander     Commander
 }
@@ -110,6 +112,9 @@ func pipeStreamToLog(stream string, pipe io.Reader, logChan chan<- entity.LogEnt
 	}()
 }
 
+const maxHistLen int = 100
+const maxLogLen int = 1000
+
 func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, id string) (int, error) {
 	command, err := s.storage.GetCommandById(ctx, id)
 	if err != nil {
@@ -129,12 +134,26 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 	}
 
 	s.historyMutex.Lock()
-	execution.ExecId = len(s.history)
+	histLen := len(s.history)
+	execution.ExecId = histLen + s.historyOffset
+	if histLen >= maxHistLen {
+		removeCnt := histLen - maxHistLen + 1
+		for i := 0; i < removeCnt; i++ {
+			s.history[i] = nil
+		}
+		s.history = s.history[removeCnt:]
+		s.historyOffset += removeCnt
+	}
 	s.history = append(s.history, &execution)
 	s.historyMutex.Unlock()
 
 	slog.Info("Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
-	cmd := s.commander.Command("bash", "-c", command.Command)
+	var cmd Command
+	if runtime.GOOS == "linux" {
+		cmd = s.commander.Command("bash", "-c", command.Command)
+	} else if runtime.GOOS == "windows" {
+		cmd = s.commander.Command("cmd", "/c", command.Command)
+	}
 
 	logChan := make(chan entity.LogEntry)
 	doneChan := make(chan int)
@@ -153,10 +172,18 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 	go func() {
 		doneCnt := 0
 		// read from log channel until both stdout and stderr are closed
+	loop:
 		for doneCnt < 2 {
 			select {
 			case log := <-logChan:
 				execution.Log = append(execution.Log, log)
+				if len(execution.Log) > maxLogLen {
+					execution.Log = append(execution.Log, entity.LogEntry{
+						Stream: "system",
+						Data:   "log truncated ...",
+					})
+					break loop
+				}
 			case <-doneChan:
 				doneCnt += 1
 			}
@@ -185,7 +212,7 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.Us
 	defer s.historyMutex.RUnlock()
 
 	history := make([]entity.ExecutionHistoryEntry, 0)
-	for i, execution := range s.history {
+	for _, execution := range s.history {
 		command, err := s.storage.GetCommandById(ctx, execution.CommandId)
 		if err != nil || command == nil {
 			slog.Error("command not found", "command_id", execution.CommandId)
@@ -197,15 +224,12 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.Us
 		}
 
 		history = append(history, entity.ExecutionHistoryEntry{
-			ExecId:      i,
+			ExecId:      execution.ExecId,
 			Time:        execution.ExecTime,
 			CommandName: command.Name,
 		})
 	}
 
-	slices.SortFunc(history, func(a, b entity.ExecutionHistoryEntry) int {
-		return int(a.Time.Sub(b.Time).Milliseconds())
-	})
 	return history, nil
 }
 
@@ -213,10 +237,11 @@ func (s *CommandService) GetExecution(ctx context.Context, user entity.User, exe
 	s.historyMutex.RLock()
 	defer s.historyMutex.RUnlock()
 
-	if execId < 0 || execId >= len(s.history) {
+	idx := execId - s.historyOffset
+	if idx < 0 || idx >= len(s.history) {
 		return nil, CommandNotFoundError
 	}
-	execution := s.history[execId]
+	execution := s.history[idx]
 
 	command, err := s.storage.GetCommandById(ctx, execution.CommandId)
 	if err != nil || command == nil {
