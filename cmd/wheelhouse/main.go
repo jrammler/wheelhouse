@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -44,32 +45,57 @@ func serve(addr string, storagePath string) {
 		os.Exit(1)
 	}
 
-	// Set up signal handling for config reload
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGHUP) // Listen for SIGHUP
-	go func() {
-		for sig := range signalChan {
-			slog.Info("Received signal", "signal", sig)
-			err := sto.LoadConfig()
-			if err != nil {
-				slog.Error("Failed to reload config. Continuing with previous config", "error", err)
-			} else {
-				slog.Info("Config reloaded successfully")
-			}
-		}
-	}()
-
 	ser := &service.Service{
 		CommandService: command.NewCommandService(sto, nil),
 		AuthService:    auth.NewAuthService(sto),
 	}
 
-	server := web.NewServer(ser)
-	err = server.Serve(addr)
-	if err != nil {
-		slog.Error("Error reading password", "error", err)
-		os.Exit(1)
+	server := web.NewServer(ser, addr)
+	go func() {
+		err = server.Serve()
+		if err != nil {
+			slog.Error("Error while running server", "error", err)
+		}
+	}()
+
+	signalHandler(sto, server)
+}
+
+func signalHandler(sto storage.Storage, server *web.Server) {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	for sig := range signalChan {
+		slog.Info("Received signal", "signal", sig)
+		switch sig {
+		case syscall.SIGHUP:
+			reloadConfig(sto)
+		case syscall.SIGINT, syscall.SIGTERM:
+			shutdownServer(server, signalChan)
+		}
 	}
+}
+
+func reloadConfig(sto storage.Storage) {
+	err := sto.LoadConfig()
+	if err != nil {
+		slog.Error("Failed to reload config. Continuing with previous config", "error", err)
+	} else {
+		slog.Info("Config reloaded successfully")
+	}
+}
+
+func shutdownServer(server *web.Server, signalChan <-chan os.Signal) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		for sig := range signalChan {
+			switch sig {
+			case syscall.SIGINT, syscall.SIGTERM:
+				cancel()
+			}
+		}
+	}()
+	server.Shutdown(ctx)
+	os.Exit(0)
 }
 
 func hashPassword() {

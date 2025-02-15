@@ -37,8 +37,8 @@ func (m *mockCommand) ExitCode() int {
 
 type mockCommander struct{}
 
-func (m *mockCommander) Command(name string, arg ...string) Command {
-	if arg[len(arg)-1] == "fail" {
+func (m *mockCommander) Command(command string) Command {
+	if command == "fail" {
 		return &mockCommand{
 			exitCode: 1,
 		}

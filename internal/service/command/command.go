@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
-	"runtime"
 	"slices"
 	"sync"
 	"time"
@@ -24,10 +23,6 @@ type Command interface {
 	StdoutPipe() (io.ReadCloser, error)
 	StderrPipe() (io.ReadCloser, error)
 	ExitCode() int
-}
-
-type Commander interface {
-	Command(name string, arg ...string) Command
 }
 
 type execCommand struct {
@@ -51,14 +46,6 @@ func (e *execCommand) ExitCode() int {
 		return e.cmd.ProcessState.ExitCode()
 	}
 	return -1
-}
-
-type execCommander struct{}
-
-func (rc *execCommander) Command(name string, arg ...string) Command {
-	return &execCommand{
-		cmd: exec.Command(name, arg...),
-	}
 }
 
 type CommandService struct {
@@ -148,12 +135,7 @@ func (s *CommandService) ExecuteCommand(ctx context.Context, user entity.User, i
 	s.historyMutex.Unlock()
 
 	slog.Info("Executing command", "command_id", id, "command_name", command.Name, "command", command.Command)
-	var cmd Command
-	if runtime.GOOS == "linux" {
-		cmd = s.commander.Command("bash", "-c", command.Command)
-	} else if runtime.GOOS == "windows" {
-		cmd = s.commander.Command("cmd", "/c", command.Command)
-	}
+	cmd := s.commander.Command(command.Command)
 
 	logChan := make(chan entity.LogEntry)
 	doneChan := make(chan int)
@@ -258,7 +240,15 @@ func (s *CommandService) GetExecution(ctx context.Context, user entity.User, exe
 }
 
 func (s *CommandService) WaitExecutions(ctx context.Context) {
-	s.execWaitGroup.Wait()
+	done := make(chan any)
+	go func() {
+		s.execWaitGroup.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 func userHasRole(user entity.User, role string) bool {

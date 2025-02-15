@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"embed"
+	"log/slog"
 	"net/http"
 
 	"github.com/jrammler/wheelhouse/internal/service"
@@ -12,29 +14,48 @@ var staticEmbed embed.FS
 
 type Server struct {
 	service *service.Service
+	server  *http.Server
 }
 
-func NewServer(service *service.Service) *Server {
-	return &Server{
-		service: service,
-	}
-}
-
-func (s *Server) Serve(addr string) error {
+func NewServer(service *service.Service, addr string) *Server {
 	mux := http.NewServeMux()
 
 	staticFs := http.FileServerFS(staticEmbed)
 	mux.Handle("/static/", staticFs)
 
-	authenticatedMux := SetupAuthentication(s.service, mux)
-	authenticatedMux.HandleFunc("GET /", s.handleIndexGet)
+	authenticatedMux := SetupAuthentication(service, mux)
+	authenticatedMux.HandleFunc("GET /", handleIndexGet)
 
-	SetupCommandMux(s.service, authenticatedMux)
+	SetupCommandMux(service, authenticatedMux)
 
-	return http.ListenAndServe(addr, mux)
+	return &Server{
+		service: service,
+		server: &http.Server{
+			Addr:    addr,
+			Handler: mux,
+		},
+	}
 }
 
-func (s *Server) handleIndexGet(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Serve() error {
+	err := s.server.ListenAndServe()
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
+}
+
+func (s *Server) Shutdown(ctx context.Context) {
+	slog.Info("Shutting down server")
+	err := s.server.Shutdown(ctx)
+	if err != nil {
+		slog.Error("Error while shutting down server", "error", err)
+	}
+	slog.Info("Waiting for all command executions to finish")
+	s.service.CommandService.WaitExecutions(ctx)
+}
+
+func handleIndexGet(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
