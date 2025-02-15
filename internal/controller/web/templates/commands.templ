@@ -9,25 +9,66 @@ import (
 
 templ Commands(commands []entity.Command) {
 	@page() {
-		<h1>Commands</h1>
-		<ul>
-			for _, command := range commands {
-				<li><form action={ templ.URL(fmt.Sprintf("/execute/%s", command.Id)) } method="post"><button>{ command.Name }</button></form></li>
-			}
-		</ul>
+		<h1 class="text-3xl mb-4">Commands</h1>
+		<table class="table table-pin-rows">
+			<thead>
+				<tr>
+					<th>Action</th>
+					<th class="w-full">Command Name</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, command := range commands {
+					<tr>
+						<th>
+							<button hx-post={ fmt.Sprintf("/execute/%s", command.Id) } hx-target="body" class="btn btn-ghost w-20">
+								@iconRun()
+								Run
+							</button>
+						</th>
+						<th class="w-full">{ command.Name }</th>
+					</tr>
+				}
+			</tbody>
+		</table>
 	}
+}
+
+func exitCodeToState(exitCode *int) string {
+	if exitCode == nil {
+		return "running"
+	}
+	if *exitCode == 0 {
+		return "finished"
+	}
+	return "error"
 }
 
 templ ExecutionList(history []entity.ExecutionHistoryEntry) {
 	@page() {
-		<h1>Execution History</h1>
-		<ul>
-			for _, entry := range slices.Backward(history) {
-				<li>
-					<a href={ templ.URL(fmt.Sprintf("/executions/%d", entry.ExecId)) }>{ fmt.Sprintf("[%s] %s", entry.Time.Format(time.DateTime), entry.CommandName) } </a>
-				</li>
-			}
-		</ul>
+		<h1 class="text-3xl mb-4">Command Execution History</h1>
+		<table class="table table-pin-rows">
+			<thead>
+				<tr>
+					<th>Time</th>
+					<th>Status</th>
+					<th class="w-full">Command Name</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, entry := range slices.Backward(history) {
+					<tr>
+						<th>
+							<a class="btn btn-ghost w-48" href={ templ.URL(fmt.Sprintf("/executions/%d", entry.ExecId)) }>
+								{ entry.Time.Format(time.DateTime) }
+							</a>
+						</th>
+						<th>{ exitCodeToState(entry.ExitCode) } </th>
+						<th class="w-full">{ entry.CommandName }</th>
+					</tr>
+				}
+			</tbody>
+		</table>
 	}
 }
 
@@ -40,15 +81,20 @@ func defaultInt(opt *int) int {
 
 templ LogList(execution *entity.CommandExecution, start *int) {
 	for _, entry := range execution.Log[defaultInt(start):] {
-		<li
+		<pre
 			if entry.Stream == "stderr" {
-				style="color:Red"
+				class="text-warning-content"
 			}
-		>[{ entry.Stream }] { entry.Data }</li>
+		><code>{ entry.Data }</code></pre>
 	}
 	if (execution.ExitCode == nil) {
 		// the command is still running
-		<li style="color:grey" hx-get={ fmt.Sprintf("/executions/%d/log?start=%d", execution.ExecId, len(execution.Log)) } hx-swap="outerHTML" hx-trigger="load delay:2s">running...</li>
+		<pre
+			hx-get={ fmt.Sprintf("/executions/%d/log?start=%d", execution.ExecId, len(execution.Log)) }
+			hx-swap="outerHTML"
+			hx-trigger="load delay:2s"
+			class="text-info-content"
+		><code>running...</code></pre>
 	} else if start != nil {
 		// if start is nil, this is not an htmx call -> no oob swap
 		<p id="exitcode" hx-swap-oob="true">{ fmt.Sprintf("%d", *execution.ExitCode) }</p>
@@ -57,17 +103,15 @@ templ LogList(execution *entity.CommandExecution, start *int) {
 
 templ ExecutionDetails(execution *entity.CommandExecution) {
 	@page() {
-		<h1>ExitCode</h1>
+		<h1 class="text-3xl mb-4">ExitCode</h1>
 		if execution.ExitCode == nil {
 			<p id="exitcode">Execution not finished</p>
 		} else {
 			<p id="exitcode">{ fmt.Sprintf("%d", *execution.ExitCode) }</p>
 		}
-		<h1>Output</h1>
-		<ul style="font-family:monospace">
+		<h1 class="text-3xl my-4">Output</h1>
+		<div class="mockup-code before:hidden bg-base-200 text-base-content">
 			@LogList(execution, nil)
-		</ul>
-		<h1>Controls</h1>
-		<p><a href={ templ.URL(fmt.Sprintf("/executions/%d", execution.ExecId)) }>Refresh</a></p>
+		</div>
 	}
 }

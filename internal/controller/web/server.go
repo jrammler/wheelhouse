@@ -1,10 +1,14 @@
 package web
 
 import (
+	"embed"
 	"net/http"
 
 	"github.com/jrammler/wheelhouse/internal/service"
 )
+
+//go:embed all:static
+var staticEmbed embed.FS
 
 type Server struct {
 	service *service.Service
@@ -18,6 +22,9 @@ func NewServer(service *service.Service) *Server {
 
 func (s *Server) Serve(addr string) error {
 	mux := http.NewServeMux()
+
+	staticFs := http.FileServerFS(staticEmbed)
+	mux.Handle("/static/", staticFs)
 
 	authenticatedMux := SetupAuthentication(s.service, mux)
 	authenticatedMux.HandleFunc("GET /", s.handleIndexGet)

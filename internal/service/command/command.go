@@ -227,6 +227,7 @@ func (s *CommandService) GetExecutionHistory(ctx context.Context, user entity.Us
 			ExecId:      execution.ExecId,
 			Time:        execution.ExecTime,
 			CommandName: command.Name,
+			ExitCode:    execution.ExitCode,
 		})
 	}
 

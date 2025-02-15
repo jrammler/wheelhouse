@@ -1,28 +1,69 @@
 package templates
 
+templ navbar() {
+	<header class="navbar bg-base-100 shadow-sm">
+		<div class="navbar-start">
+			<div class="dropdown">
+				<div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
+					@iconMenu()
+				</div>
+				<ul tabindex="0" class="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow">
+					{ children... }
+				</ul>
+			</div>
+			<span class="text-2xl font-bold lg:pl-4">Wheelhouse</span>
+		</div>
+		<div class="navbar-center hidden lg:flex">
+			<ul class="menu menu-horizontal px-1">
+				{ children... }
+			</ul>
+		</div>
+		<div class="navbar-end">
+			<a class="btn" href="/logout">
+				@iconLogout()
+				Logout
+			</a>
+		</div>
+	</header>
+}
+
 templ emptyPage() {
 	<!DOCTYPE html>
-	<html lang="de">
+	<html lang="en">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<meta name="color-scheme" content="light dark"/>
+			<link href="/static/ext/daisyui.css" rel="stylesheet" type="text/css"/>
+			<script src="/static/ext/tailwind.js"></script>
+			<script src="/static/ext/htmx.js"></script>
 			<title>Wheelhouse</title>
 		</head>
 		<body hx-boost="true">
-			{ children... }
+			<div class="container mx-auto h-dvh flex flex-col">
+				{ children... }
+			</div>
 		</body>
 	</html>
 }
 
 templ page() {
 	@emptyPage() {
-		<header>
-			<a href="/commands">Commands</a>
-			<a href="/executions">History</a>
-			<a href="/logout">Logout</a>
-		</header>
-		<main>
+		@navbar() {
+			<li>
+				<a href="/commands">
+					@iconCommands()
+					Commands
+				</a>
+			</li>
+			<li>
+				<a href="/executions">
+					@iconHistory()
+					History
+				</a>
+			</li>
+		}
+		<main class="p-4 h-full overflow-auto">
 			{ children... }
 		</main>
 	}

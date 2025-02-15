@@ -26,4 +26,5 @@ type ExecutionHistoryEntry struct {
 	ExecId      int
 	Time        time.Time
 	CommandName string
+	ExitCode    *int
 }

@@ -1,5 +1,6 @@
 # Todo
 
+- use tailwind-cli to generate tailwind style sheet
 - command cancelling
 - store users in separate file/database
   - where should user roles be stored?
