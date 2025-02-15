@@ -1,8 +1,8 @@
-*_templ.go
-/internal/controller/web/static/
+/wheelhouse
+/wheelhouse.exe
+
+/tailwindcss
+/scripts/
 
 .aider*
 .env
-
-/wheelhouse
-/wheelhouse.exe

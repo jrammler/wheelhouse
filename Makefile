@@ -1,8 +1,8 @@
 GO_FILES := $(shell find -type f -name "*.go" ! -name "*_templ.go")
 TEMPL_FILES := $(shell find -type f -name "*.templ")
 TEMPL_GO_FILES := $(TEMPL_FILES:.templ=_templ.go)
-STATIC_DIR := internal/controller/web/static/ext
-STATIC_FILES := $(patsubst %, $(STATIC_DIR)/%, htmx.js tailwind.js daisyui.css)
+STATIC_DIR := internal/controller/web/static
+STATIC_FILES := $(patsubst %, $(STATIC_DIR)/%, js/htmx.js css/tailwind.css css/daisyui.css)
 
 SOURCES := $(GO_FILES) $(TEMPL_FILES) $(STATIC_FILES)
 
@@ -21,7 +21,7 @@ coverage:
 
 .PHONY: run
 run: wheelhouse
-	./wheelhouse serve :8080 config.json
+	./wheelhouse serve :8080  ~/.config/wheelhouse/config.json
 
 .PHONY: format
 format:
@@ -35,8 +35,15 @@ watch: wheelhouse
 %_templ.go: %.templ
 	templ generate -f $^
 
-$(STATIC_FILES):
-	mkdir -p $(STATIC_DIR)
-	wget -O $(STATIC_DIR)/htmx.js https://unpkg.com/htmx.org@2.0.4
-	wget -O $(STATIC_DIR)/daisyui.css https://cdn.jsdelivr.net/npm/daisyui@5.0.0-beta.8/daisyui.css
-	wget -O $(STATIC_DIR)/tailwind.js https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4
+$(STATIC_DIR)/js/htmx.js:
+	mkdir -p $(STATIC_DIR)/js
+	curl -sL -o $(STATIC_DIR)/js/htmx.js https://unpkg.com/htmx.org@2.0.4
+
+$(STATIC_DIR)/css/daisyui.css:
+	mkdir -p $(STATIC_DIR)/css
+	curl -sL -o $(STATIC_DIR)/css/daisyui.css https://cdn.jsdelivr.net/npm/daisyui@5.0.0-beta.8/daisyui.css
+
+$(STATIC_DIR)/css/tailwind.css: internal/controller/web/templates/tailwind.css $(TEMPL_FILES)
+	mkdir -p $(STATIC_DIR)/css
+	./tailwindcss -i internal/controller/web/templates/tailwind.css -o $(STATIC_DIR)/css/tailwind.css
+	touch $(STATIC_DIR)/css/tailwind.css

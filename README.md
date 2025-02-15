@@ -22,14 +22,14 @@ Wheelhouse is a web-based tool to execute commands on a server. It provides a us
 
 ### Prerequisites
 
--   Go (version 1.20 or higher)
+- Go (version 1.22 or higher)
 
 ### Installation
 
 Install the application using the following command:
 
 ```bash
-go install github.com/jrammler/wheelhouse/cmd/wheelhouse
+go install github.com/jrammler/wheelhouse/cmd/wheelhouse@latest
 ```
 
 This command will download and compile the application and place the executable in your `$GOPATH/bin` directory. Ensure that `$GOPATH/bin` is in your system's `PATH` environment variable.
