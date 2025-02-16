@@ -45,5 +45,5 @@ $(STATIC_DIR)/css/daisyui.css:
 
 $(STATIC_DIR)/css/tailwind.css: internal/controller/web/templates/tailwind.css $(TEMPL_FILES)
 	mkdir -p $(STATIC_DIR)/css
-	./tailwindcss -i internal/controller/web/templates/tailwind.css -o $(STATIC_DIR)/css/tailwind.css
+	./tailwindcss -i internal/controller/web/templates/tailwind.css -o $(STATIC_DIR)/css/tailwind.css --minify
 	touch $(STATIC_DIR)/css/tailwind.css
